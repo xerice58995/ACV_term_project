@@ -1196,8 +1196,8 @@ class AAttn(nn.Module):
         >>> x = torch.randn(2, 64, 128, 128)
         >>> output = model(x)
         >>> print(output.shape)
-    
-    Notes: 
+
+    Notes:
         recommend that dim//num_heads be a multiple of 32 or 64.
 
     """
@@ -1263,7 +1263,7 @@ class AAttn(nn.Module):
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
 
         return self.proj(x + pp)
-    
+
 
 class ABlock(nn.Module):
     """
@@ -1287,8 +1287,8 @@ class ABlock(nn.Module):
         >>> x = torch.randn(2, 64, 128, 128)
         >>> output = model(x)
         >>> print(output.shape)
-    
-    Notes: 
+
+    Notes:
         recommend that dim//num_heads be a multiple of 32 or 64.
     """
 
@@ -1316,7 +1316,7 @@ class ABlock(nn.Module):
         return x
 
 
-class A2C2f(nn.Module):  
+class A2C2f(nn.Module):
     """
     A2C2f module with residual enhanced feature extraction using ABlock blocks with area-attention. Also known as R-ELAN
 
@@ -1764,9 +1764,37 @@ class C3k2_EAMC(C2f):
             for _ in range(n)
         )
         self.eca = eca_layer_triple(c2, k_size=eca_k)
+        self.simam = SimAM()
 
     def forward(self, x):
         y = list(self.cv1(x).chunk(2, 1))             # 两路分支
         y.extend(m(y[-1]) for m in self.m)            # 多层残差
         out = self.cv2(torch.cat(y, 1))               # 合并特征
-        return self.eca(out)                          # 加上 EAMC 通道注意力
+        out_eca = self.eca(out)                       # 加上 EAMC 通道注意力
+
+        # 👇 [新增這行] 把 ECA 處理完的特徵，再送進 SimAM 做 3D 強化
+        out_final = self.simam(out_eca)
+
+        return out_final                              # 輸出最終特徵
+
+class SimAM(nn.Module):
+    """
+    SimAM: 無參數的 3D 注意力機制
+    利用神經元的能量函數來推導 3D 注意力權重，不會增加任何模型參數。
+    """
+    def __init__(self, e_lambda=1e-4):
+        super(SimAM, self).__init__()
+        self.activaton = nn.Sigmoid()
+        self.e_lambda = e_lambda
+
+    def forward(self, x):
+        # 獲取維度 (Batch, Channel, Height, Width)
+        b, c, h, w = x.size()
+        n = w * h - 1
+
+        # 計算每個通道的平均值與變異數 (能量函數核心)
+        x_minus_mu_square = (x - x.mean(dim=[2, 3], keepdim=True)).pow(2)
+        y = x_minus_mu_square / (4 * (x_minus_mu_square.sum(dim=[2, 3], keepdim=True) / n + self.e_lambda)) + 0.5
+
+        # 將計算出的注意力權重乘回原特徵圖
+        return x * self.activaton(y)

@@ -1,0 +1,11 @@
+# 排除資料集
+/datasets/*
+!/datasets/.gitkeep
+
+# 排除所有 Python 編譯快取資料夾
+__pycache__/
+*.pyc
+
+# 排除作業系統產生的垃圾檔案
+.DS_Store
+Thumbs.db

@@ -68,7 +68,9 @@ from ultralytics.nn.modules import (
     C2f_ScConv,
     C3k2_ScConv,
     M2C2f,
-    C3k2_EAMC
+    C3k2_EAMC,
+    CoordAtt,
+    C3k2_CoordAtt,
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1005,6 +1007,8 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C3k2_ScConv,
             M2C2f,
             C3k2_EAMC,
+            CoordAtt,
+            C3k2_CoordAtt,
         }:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
@@ -1036,6 +1040,8 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 C3k2_ScConv,
                 M2C2f,
                 C3k2_EAMC,
+                CoordAtt,
+                C3k2_CoordAtt,
             }:
                 args.insert(2, n)  # number of repeats
                 n = 1
@@ -1043,7 +1049,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 legacy = False
                 if scale in "mlx":
                     args[3] = True
-            if m is A2C2f: 
+            if m is A2C2f:
                 legacy = False
                 if scale in "lx":  # for L/X sizes
                     args.append(True)

@@ -54,6 +54,8 @@ __all__ = (
     "C3k2_ScConv",
     "M2C2f",
     "C3k2_EAMC",
+    "CoordAtt",
+    "C3k2_CoordAtt"
 )
 
 
@@ -1799,7 +1801,6 @@ class SimAM(nn.Module):
         # 將計算出的注意力權重乘回原特徵圖
         return x * self.activaton(y)
 
-
 class h_sigmoid(nn.Module):
     """Hard sigmoid activation function."""
     def __init__(self, inplace=True):
@@ -1866,3 +1867,50 @@ class CoordAtt(nn.Module):
         a_w = self.conv_w(x_w).sigmoid()
 
         return identity * a_w * a_h
+
+
+class C3k2_CoordAtt(C2f):
+    """C3k2 with Coordinate Attention instead of ECA Attention.
+
+    This module replaces the ECA attention in C3k2_EAMC with CoordAtt,
+    which is particularly effective for detecting small objects by preserving
+    coordinate/spatial location information.
+
+    Args:
+        c1 (int): Input channels
+        c2 (int): Output channels
+        n (int): Number of Bottleneck/C3k blocks, default is 1
+        c3k (bool): Whether to use C3k instead of Bottleneck, default is False
+        e (float): Expansion ratio for hidden channels, default is 0.5
+        g (int): Number of groups for grouped convolution, default is 1
+        shortcut (bool): Whether to use shortcut connection, default is True
+        reduction (int): Reduction ratio for CoordAtt, default is 32
+    """
+
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True, reduction=32):
+        super().__init__(c1, c2, n, shortcut, g, e)
+
+        # Replace middle module with Bottleneck or C3k
+        self.m = nn.ModuleList(
+            C3k(self.c, self.c, 2, shortcut, g) if c3k else Bottleneck(self.c, self.c, shortcut, g)
+            for _ in range(n)
+        )
+
+        # Use CoordAtt instead of ECA
+        self.coord_att = CoordAtt(c2, reduction=reduction)
+        # Keep SimAM for 3D attention enhancement
+        self.simam = SimAM()
+
+    def forward(self, x):
+        # Two-branch split
+        y = list(self.cv1(x).chunk(2, 1))
+        # Multi-layer residual
+        y.extend(m(y[-1]) for m in self.m)
+        # Merge features
+        out = self.cv2(torch.cat(y, 1))
+        # Apply Coordinate Attention
+        out_coord = self.coord_att(out)
+        # Apply 3D attention enhancement
+        out_final = self.simam(out_coord)
+
+        return out_final

@@ -128,3 +128,8 @@ cfg: # (str, optional) for overriding defaults.yaml
 
 # Tracker settings ------------------------------------------------------------------------------------------------------
 tracker: botsort.yaml # (str) tracker type, choices=[botsort.yaml, bytetrack.yaml]
+
+# VarifocalLoss Configuration
+use_vfl: false # (bool) Enable VarifocalLoss for classification
+vfl_alpha: 0.75 # (float) VarifocalLoss alpha parameter, controls negative sample weight
+vfl_gamma: 2.0 # (float) VarifocalLoss gamma parameter, controls focus on hard examples

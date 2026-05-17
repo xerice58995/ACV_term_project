@@ -26,5 +26,8 @@ if __name__ == '__main__':
                 name='YOLO_baseline',
                 single_cls=False,
                 amp=True,
+                # use_vfl=True,           # ✓ 啟用 VarifocalLoss
+                # vfl_alpha=0.75,         # VFL 超參數
+                # vfl_gamma=2.0,          # VFL 超參數
                 cache=True ,
                 )

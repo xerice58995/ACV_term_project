@@ -61,7 +61,9 @@ from .block import (
     C2f_ScConv,
     C3k2_ScConv,
     M2C2f,
-    C3k2_EAMC
+    C3k2_EAMC,
+    CoordAtt,
+    C3k2_CoordAtt,
 )
 from .conv import (
     CBAM,
@@ -169,5 +171,7 @@ __all__ = (
     "C2f_ScConv",
     "C3k2_ScConv",
     "M2C2f",
-    "C3k2_EAMC"
+    "C3k2_EAMC",
+    "CoordAtt",
+    "C3k2_CoordAtt",
 )

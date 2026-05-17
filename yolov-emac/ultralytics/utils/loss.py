@@ -176,6 +176,15 @@ class v8DetectionLoss:
         self.assigner = TaskAlignedAssigner(topk=tal_topk, num_classes=self.nc, alpha=0.5, beta=6.0)
         self.bbox_loss = BboxLoss(m.reg_max).to(device)
         self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
+        # ========== VarifocalLoss Configuration ==========
+        # Check if use_vfl exists in hyperparameters, default to False for backward compatibility
+        self.use_vfl = getattr(h, 'use_vfl', False)
+        if self.use_vfl:
+            self.vfl = VarifocalLoss()
+            self.vfl_alpha = getattr(h, 'vfl_alpha', 0.75)
+            self.vfl_gamma = getattr(h, 'vfl_gamma', 2.0)
+            if h.verbose:
+                LOGGER.info(f"Using VarifocalLoss with alpha={self.vfl_alpha}, gamma={self.vfl_gamma}")
 
     def preprocess(self, targets, batch_size, scale_tensor):
         """Preprocesses the target counts and matches with the input batch size to output a tensor."""
@@ -243,8 +252,18 @@ class v8DetectionLoss:
         target_scores_sum = max(target_scores.sum(), 1)
 
         # Cls loss
-        # loss[1] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
-        loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
+        if self.use_vfl:
+            # VarifocalLoss: uses target_scores as IoU-aware weights
+            # pred_scores: [B, N, C] (logits, no sigmoid applied)
+            # target_scores: [B, N, C] (0-1, representing IoU*foreground_prob)
+            # target_labels: [B, N] (0 for background, class_idx for foreground)
+            loss[1] = self.vfl.forward(
+                pred_scores, target_scores.to(dtype), target_labels.squeeze(-1).to(dtype),
+                alpha=self.vfl_alpha, gamma=self.vfl_gamma
+            ) / target_scores_sum
+        else:
+            # Traditional BCE
+            loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
 
         # Bbox loss
         if fg_mask.sum():
